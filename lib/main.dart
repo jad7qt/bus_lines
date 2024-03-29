@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -36,6 +37,50 @@ class MyHomePage extends StatefulWidget {
 
 
 class _MyHomePageState extends State<MyHomePage> {
+
+  void toggleFavorite(Busline busline) {
+    setState(() {
+      busline.isFavorited = !busline.isFavorited;
+      // Save favorite bus lines to shared preferences
+      saveFavoriteBuslines();
+    });
+  }
+
+  void saveFavoriteBuslines() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    List<String> favoriteIds = [];
+    for (final busline in _buslines) {
+      if (busline.isFavorited) {
+        favoriteIds.add(busline.id.toString());
+      }
+    }
+    prefs.setStringList('favoriteBuslines', favoriteIds);
+  }
+
+  void saveBuslist() {
+    setState(() {
+      List<Busline> favoriteBuslines = _buslines.where((busline) =>
+      busline.isFavorited).toList();
+      favoriteBuslines.sort((a, b) => a.name.compareTo(b.name));
+
+      List<Busline> nonFavoriteBuslines = _buslines.where((busline) =>
+      !busline.isFavorited).toList();
+      nonFavoriteBuslines.sort((a, b) => a.name.compareTo(b.name));
+
+      _buslines = [...favoriteBuslines, ...nonFavoriteBuslines];
+      // TODO: Remove print statement
+      // for(final Busline bus in _buslines){
+      //   print(bus.name);
+      // }
+    });
+  }
+
+  Future<List<String>> loadFavoriteBuslines() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    List<String>? favoriteIds = prefs.getStringList('favoriteBuslines');
+    return favoriteIds ?? [];
+  }
+
   // need to query API to get bus lines
   late List<Busline> _buslines = [];
 
@@ -72,7 +117,6 @@ class _MyHomePageState extends State<MyHomePage> {
       for(final bus in lines){
         bus.stops = routes[bus.id]!;
       }
-      // TODO: Get the stops in a map, stop ID to position (list of 2 doubles)
       return lines;
     }else{
       throw Exception("Data could not be loaded");
@@ -86,9 +130,55 @@ class _MyHomePageState extends State<MyHomePage> {
     fetchData().then((lines) {
       setState(() {
         _buslines = lines;
+        saveBuslist();
+        loadFavoriteBuslines().then((favoriteIds) async {
+          // TODO: FIX THIS
+          print("Checking favorite1:");
+          for (String id in favoriteIds) {
+            print("Checking favorite2:");
+            print(id);
+            Busline ? curr_busline ;
+            // Busline? busline = _buslines.firstWhere((busline) => busline.id.toString() == id);
+            for(final Busline bus in _buslines){
+              print("Checking: " + bus.id.toString() + " against : " + id);
+              if (bus.id.toString() == id){
+                print("TRUE HERE");
+                curr_busline = bus;
+              }
+            }
+            if(curr_busline != null){
+              print("Checking favorite3:");
+              curr_busline.isFavorited = true;
+            }
+          }
+          saveBuslist();
+        });
       });
     });
+    // loadFavoriteBuslines().then((favoriteIds) async {
+    //   // TODO: FIX THIS
+    //   print("Checking favorite1:");
+    //   for (String id in favoriteIds) {
+    //     print("Checking favorite2:");
+    //     print(id);
+    //     Busline ? curr_busline ;
+    //     // Busline? busline = _buslines.firstWhere((busline) => busline.id.toString() == id);
+    //     for(final Busline bus in _buslines){
+    //       print("Checking: " + bus.id.toString() + " against : " + id);
+    //       if (bus.id.toString() == id){
+    //         print("TRUE HERE");
+    //         curr_busline = bus;
+    //       }
+    //     }
+    //     if(curr_busline != null){
+    //       print("Checking favorite3:");
+    //       curr_busline.isFavorited = true;
+    //     }
+    //   }
+    //   saveBuslist();
+    // });
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -99,20 +189,37 @@ class _MyHomePageState extends State<MyHomePage> {
       body: ListView.builder(
         itemCount: _buslines.length,
         itemBuilder: (context, index) {
-          return GestureDetector(
+          return ListTile(
+            title: Text(_buslines[index].name),
+            tileColor: Color(
+                int.parse(_buslines[index].color, radix: 16) + 0xFF000000),
+            selectedColor: Color(
+                int.parse(_buslines[index].color, radix: 16) + 0xFF000000),
+            trailing: IconButton(
+              icon: Icon(
+                _buslines[index].isFavorited ? Icons.favorite : Icons
+                    .favorite_border,
+                color: _buslines[index].isFavorited ? Colors.red : Colors.grey,
+              ),
+              onPressed: () {
+                setState(() {
+                  toggleFavorite(_buslines[index]);
+                  saveFavoriteBuslines(); // Call the function to save favorites
+                  saveBuslist();
+                });
+              },
+            ),
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => MapPage(title: _buslines[index].name, bounds: _buslines[index].bounds, busline: _buslines[index])
+                    builder: (context) =>
+                        MapPage(title: _buslines[index].name,
+                            bounds: _buslines[index].bounds,
+                            busline: _buslines[index])
                 ),
               );
             },
-            child: ListTile(
-              title: Text(_buslines[index].name),
-              tileColor: Color(int.parse(_buslines[index].color, radix: 16) + 0xFF000000),
-              selectedColor: Color(int.parse(_buslines[index].color, radix: 16) + 0xFF000000),
-            ),
           );
         },
       ),
@@ -159,33 +266,29 @@ class _MapPageState extends State<MapPage> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.green[700],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title),
+        elevation: 2,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        )
       ),
-      home: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.title),
-          elevation: 2,
+      body: GoogleMap(
+        onMapCreated: _onMapCreated,
+        initialCameraPosition: CameraPosition(
+          target: _center,
+          zoom: 12,
         ),
-        body: GoogleMap(
-          onMapCreated: _onMapCreated,
-          initialCameraPosition: CameraPosition(
-            target: _center,
-            zoom: 12,
-          ),
-          markers: _markers.values.toSet(),
-          cameraTargetBounds: CameraTargetBounds(
-            LatLngBounds(
-              northeast: _boundNE,
-              southwest: _boundSW,
-            )
-            // LatLngBounds(
-            //   northeast: LatLng(38.130205, -78.436039),
-            //   southwest: LatLng(38.031599, -78.508578),
-            // )
-          ),
+        markers: _markers.values.toSet(),
+        cameraTargetBounds: CameraTargetBounds(
+          LatLngBounds(
+            northeast: _boundNE,
+            southwest: _boundSW,
+          )
         ),
       ),
     );
@@ -193,12 +296,13 @@ class _MapPageState extends State<MapPage> {
 }
 
 class Busline {
-  Busline({required this.name, required this.color, required this.id, required this.bounds, required this.stops});
+  Busline({required this.name, required this.color, required this.id, required this.bounds, required this.stops, required this.isFavorited});
   final String name;  // long_name
   final String color;  // text_color
   final int id;  // id
   final List<double> bounds;  // bounds
   late List<Position> stops;  // COMPLEX
+  late bool isFavorited; // New property
 
   factory Busline.fromJson(Map<String, dynamic> json) {
     return Busline(
@@ -207,6 +311,7 @@ class Busline {
       name: json['long_name'],
       color: json['text_color'],
       stops: [],
+      isFavorited: false,
     );
   }
 }
