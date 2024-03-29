@@ -37,19 +37,21 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   // need to query API to get bus lines
-  late List<String> _buslines = [];
+  late List<Busline> _buslines = [];
 
-  Future<List<String>> fetchData() async {
+  // Function to get busline data
+  Future<List<Busline>> fetchData() async {
     final res = await http.get(Uri.parse('https://www.cs.virginia.edu/~pm8fc/busses/busses.json'));
-    stderr.writeln("HERE");
     if (res.statusCode == 200){
       // Parse data and store into state
       final data = json.decode(res.body);
-      List<String> lines = [];
+      // List<String> lines = [];
+      List<Busline> lines = [];
       for(final line in data['lines']){
-        stderr.writeln("running");
-        lines.add(line['long_name']);
+        // lines.add(line['long_name']);
+        lines.add(Busline.fromJson(line));
       }
+      // TODO: Get the stops in a map, stop ID to position (list of 2 doubles)
       return lines;
     }else{
       throw Exception("Data could not be loaded");
@@ -76,8 +78,20 @@ class _MyHomePageState extends State<MyHomePage> {
       body: ListView.builder(
         itemCount: _buslines.length,
         itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(_buslines[index]),
+          return GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => MapPage(title: _buslines[index].name, bounds: _buslines[index].bounds)
+                ),
+              );
+            },
+            child: ListTile(
+              title: Text(_buslines[index].name),
+              tileColor: Color(int.parse(_buslines[index].color, radix: 16) + 0xFF000000),
+              selectedColor: Color(int.parse(_buslines[index].color, radix: 16) + 0xFF000000),
+            ),
           );
         },
       ),
@@ -85,15 +99,16 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 class MapPage extends StatefulWidget {
-  const MapPage({super.key, required this.title});
+  const MapPage({super.key, required this.title, required this.bounds});
 
   final String title;
+  final List<double> bounds;
 
   @override
-  State<MyHomePage> createState() => _MapPageState();
+  State<MapPage> createState() => _MapPageState();
 }
 
-class _MapPageState extends State<MyHomePage> {
+class _MapPageState extends State<MapPage> {
   late GoogleMapController mapController;
 
   final LatLng _center = const LatLng(45.521563, -122.677433);
@@ -122,6 +137,25 @@ class _MapPageState extends State<MyHomePage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class Busline {
+  Busline({required this.name, required this.color, required this.id, required this.bounds});
+  final String name;  // long_name
+  final String color;  // text_color
+  final int id;  // id
+  final List<double> bounds;  // bounds
+// TODO: ADD STOPS LIST
+  // final List<List<int>> stops;  // COMPLEX
+
+  factory Busline.fromJson(Map<String, dynamic> json) {
+    return Busline(
+      bounds: List<double>.from(json['bounds']),
+      id: json['id'],
+      name: json['long_name'],
+      color: json['text_color'],
     );
   }
 }
