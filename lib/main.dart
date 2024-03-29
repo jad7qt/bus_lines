@@ -105,13 +105,17 @@ class MapPage extends StatefulWidget {
   final List<double> bounds;
 
   @override
-  State<MapPage> createState() => _MapPageState();
+  State<MapPage> createState() => _MapPageState(bounds[0], bounds[1]);
 }
 
 class _MapPageState extends State<MapPage> {
   late GoogleMapController mapController;
+  // final LatLng _center = const LatLng(45.521563, -122.677433);
+  late final LatLng _center;
 
-  final LatLng _center = const LatLng(45.521563, -122.677433);
+  _MapPageState(double lat, double long) {
+    _center = LatLng(lat, long);
+  }
 
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
@@ -126,7 +130,7 @@ class _MapPageState extends State<MapPage> {
       ),
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Maps Sample App'),
+          title: Text(widget.title),
           elevation: 2,
         ),
         body: GoogleMap(
