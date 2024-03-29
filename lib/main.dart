@@ -45,11 +45,32 @@ class _MyHomePageState extends State<MyHomePage> {
     if (res.statusCode == 200){
       // Parse data and store into state
       final data = json.decode(res.body);
-      // List<String> lines = [];
+
+      // stop info
+      final Map<int, Position> stops = {};
+      for(final stop in data['stops']){
+        stops[stop['id']] = Position.fromJson(stop);
+      }
+
+      // handle routes
+      final Map<int, List<Position>> routes = {};
+      for(final route in data['routes']){
+        // routes[route['id']] = route['stops'];
+        final List<Position> currStops = [];
+        for(final stopID in route['stops']) {  // FOR EACH STOP IN THE ROUTE, ADD POSITION
+          currStops.add(stops[stopID]!);
+        }
+        routes[route['id']] = currStops;
+      }
+
+      // handle lines
       List<Busline> lines = [];
       for(final line in data['lines']){
         // lines.add(line['long_name']);
         lines.add(Busline.fromJson(line));
+      }
+      for(final bus in lines){
+        bus.stops = routes[bus.id]!;
       }
       // TODO: Get the stops in a map, stop ID to position (list of 2 doubles)
       return lines;
@@ -83,7 +104,7 @@ class _MyHomePageState extends State<MyHomePage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (context) => MapPage(title: _buslines[index].name, bounds: _buslines[index].bounds)
+                    builder: (context) => MapPage(title: _buslines[index].name, bounds: _buslines[index].bounds, busline: _buslines[index])
                 ),
               );
             },
@@ -99,26 +120,41 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 class MapPage extends StatefulWidget {
-  const MapPage({super.key, required this.title, required this.bounds});
+  const MapPage({super.key, required this.title, required this.bounds, required this.busline});
 
   final String title;
   final List<double> bounds;
+  final Busline busline;
 
   @override
-  State<MapPage> createState() => _MapPageState(bounds[0], bounds[1]);
+  State<MapPage> createState() => _MapPageState(bounds, busline);
 }
 
 class _MapPageState extends State<MapPage> {
   late GoogleMapController mapController;
   // final LatLng _center = const LatLng(45.521563, -122.677433);
   late final LatLng _center;
-
-  _MapPageState(double lat, double long) {
-    _center = LatLng(lat, long);
-  }
+  late final LatLng _boundNE;
+  late final LatLng _boundSW;
+  final Map<String, Marker> _markers = {};
 
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
+  }
+
+  _MapPageState(List<double> bounds, Busline busline) {
+    _center = LatLng((bounds[0] + bounds[2])/2.0, (bounds[1] + bounds[3])/2.0);
+    _boundNE = LatLng(bounds[2], bounds[3]);
+    _boundSW = LatLng(bounds[0], bounds[1]);
+
+    int i = 0;
+    for(final position in busline.stops){
+      _markers[i.toString()] = Marker(
+        markerId: MarkerId(i.toString()),
+        position: LatLng(position.lat, position.long),
+      );
+      i += 1;
+    }
   }
 
   @override
@@ -137,7 +173,18 @@ class _MapPageState extends State<MapPage> {
           onMapCreated: _onMapCreated,
           initialCameraPosition: CameraPosition(
             target: _center,
-            zoom: 11.0,
+            zoom: 12,
+          ),
+          markers: _markers.values.toSet(),
+          cameraTargetBounds: CameraTargetBounds(
+            LatLngBounds(
+              northeast: _boundNE,
+              southwest: _boundSW,
+            )
+            // LatLngBounds(
+            //   northeast: LatLng(38.130205, -78.436039),
+            //   southwest: LatLng(38.031599, -78.508578),
+            // )
           ),
         ),
       ),
@@ -146,13 +193,12 @@ class _MapPageState extends State<MapPage> {
 }
 
 class Busline {
-  Busline({required this.name, required this.color, required this.id, required this.bounds});
+  Busline({required this.name, required this.color, required this.id, required this.bounds, required this.stops});
   final String name;  // long_name
   final String color;  // text_color
   final int id;  // id
   final List<double> bounds;  // bounds
-// TODO: ADD STOPS LIST
-  // final List<List<int>> stops;  // COMPLEX
+  late List<Position> stops;  // COMPLEX
 
   factory Busline.fromJson(Map<String, dynamic> json) {
     return Busline(
@@ -160,6 +206,44 @@ class Busline {
       id: json['id'],
       name: json['long_name'],
       color: json['text_color'],
+      stops: [],
     );
+  }
+}
+
+class Route {
+  Route({required this.id, required this.stops});
+  final int id;
+  final List<int> stops;
+}
+
+class Stop {
+  Stop({required this.id, required this.position});
+  final int id;  // id
+  final List<double> position;  // bounds
+
+  factory Stop.fromJson(Map<String, dynamic> json) {
+    return Stop(
+      position: List<double>.from(json['position']),
+      id: json['id'],
+    );
+  }
+}
+
+class Position {
+  Position({required this.lat, required this.long});
+  final double lat;
+  final double long;
+
+  factory Position.fromJson(Map<String, dynamic> json) {
+    List<double> position = List<double>.from(json['position']);
+    if (position.length >= 2) {
+      return Position(
+        lat: position[0],
+        long: position[1],
+      );
+    } else {
+      throw FormatException('Invalid position format');
+    }
   }
 }
