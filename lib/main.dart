@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -16,25 +18,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(title: 'Charlottesville Bus Lines'),
     );
   }
 }
@@ -42,69 +29,55 @@ class MyApp extends StatelessWidget {
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
   final String title;
-
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
-// class _MyHomePageState extends State<MyHomePage> {
-//   int _counter = 0;
-//
-//   void _incrementCounter() {
-//     setState(() {
-//       // This call to setState tells the Flutter framework that something has
-//       // changed in this State, which causes it to rerun the build method below
-//       // so that the display can reflect the updated values. If we changed
-//       // _counter without calling setState(), then the build method would not be
-//       // called again, and so nothing would appear to happen.
-//       _counter++;
-//     });
-//   }
-// }
 
 class _MyHomePageState extends State<MyHomePage> {
   // need to query API to get bus lines
-  var _busline_arr = [];
+  late List<String> _buslines = [];
 
-  Future<void> fetchData() async {
+  Future<List<String>> fetchData() async {
     final res = await http.get(Uri.parse('https://www.cs.virginia.edu/~pm8fc/busses/busses.json'));
-
+    stderr.writeln("HERE");
     if (res.statusCode == 200){
       // Parse data and store into state
       final data = json.decode(res.body);
-      setState(() {
-        for(final line in data['lines']){
-          _busline_arr.add(line['long_name']);
-        }
-      });
+      List<String> lines = [];
+      for(final line in data['lines']){
+        stderr.writeln("running");
+        lines.add(line['long_name']);
+      }
+      return lines;
     }else{
       throw Exception("Data could not be loaded");
     }
 
   }
 
+  @override
+  void initState() {
+    super.initState();
+    fetchData().then((lines) {
+      setState(() {
+        _buslines = lines;
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Charlottesville Buslines'),
+        title: Text(widget.title),
       ),
       body: ListView.builder(
-        itemCount: _busline_arr.length,
+        itemCount: _buslines.length,
         itemBuilder: (context, index) {
           return ListTile(
-            title: Text(_busline_arr[index]),
+            title: Text(_buslines[index]),
           );
         },
       ),
