@@ -68,10 +68,6 @@ class _MyHomePageState extends State<MyHomePage> {
       nonFavoriteBuslines.sort((a, b) => a.name.compareTo(b.name));
 
       _buslines = [...favoriteBuslines, ...nonFavoriteBuslines];
-      // TODO: Remove print statement
-      // for(final Busline bus in _buslines){
-      //   print(bus.name);
-      // }
     });
   }
 
@@ -92,17 +88,17 @@ class _MyHomePageState extends State<MyHomePage> {
       final data = json.decode(res.body);
 
       // stop info
-      final Map<int, Position> stops = {};
+      final Map<int, Stop> stops = {};
       for(final stop in data['stops']){
-        stops[stop['id']] = Position.fromJson(stop);
+        stops[stop['id']] = Stop.fromJson(stop);
       }
 
       // handle routes
-      final Map<int, List<Position>> routes = {};
+      final Map<int, List<Stop>> routes = {};
       for(final route in data['routes']){
         // routes[route['id']] = route['stops'];
-        final List<Position> currStops = [];
-        for(final stopID in route['stops']) {  // FOR EACH STOP IN THE ROUTE, ADD POSITION
+        final List<Stop> currStops = [];
+        for(final stopID in route['stops']) {  // FOR EACH STOP IN THE ROUTE, ADD STOP
           currStops.add(stops[stopID]!);
         }
         routes[route['id']] = currStops;
@@ -255,10 +251,14 @@ class _MapPageState extends State<MapPage> {
     _boundSW = LatLng(bounds[0], bounds[1]);
 
     int i = 0;
-    for(final position in busline.stops){
+    for(final stop in busline.stops){
       _markers[i.toString()] = Marker(
-        markerId: MarkerId(i.toString()),
-        position: LatLng(position.lat, position.long),
+        markerId: MarkerId(stop.name),
+        position: LatLng(stop.position.lat, stop.position.long),
+        infoWindow: InfoWindow(
+          title: stop.name,
+          snippet: "Bus Stop ${i}",
+        ),
       );
       i += 1;
     }
@@ -301,7 +301,7 @@ class Busline {
   final String color;  // text_color
   final int id;  // id
   final List<double> bounds;  // bounds
-  late List<Position> stops;  // COMPLEX
+  late List<Stop> stops;  // COMPLEX
   late bool isFavorited; // New property
 
   factory Busline.fromJson(Map<String, dynamic> json) {
@@ -323,13 +323,15 @@ class Route {
 }
 
 class Stop {
-  Stop({required this.id, required this.position});
+  Stop({required this.id, required this.position, required this.name});
   final int id;  // id
-  final List<double> position;  // bounds
+  final String name;
+  final Position position;  // bounds
 
   factory Stop.fromJson(Map<String, dynamic> json) {
     return Stop(
-      position: List<double>.from(json['position']),
+      position: Position.fromJson(json),
+      name: json['name'],
       id: json['id'],
     );
   }
